@@ -156,12 +156,12 @@ public sealed class Unpickler(Stream stream, Encoding? encoding = null) : IDispo
 		Span<int> value = stackalloc int[1];
 		Stream.ReadExactly(MemoryMarshal.AsBytes(value));
 		if (value[0] < 0) {
-			throw new InvalidDataException("Expected a reasonable string length");
+			throw new InvalidDataException("Expected a reasonable buffer length");
 		}
 
-		var text = new byte[value[0]].AsSpan();
-		Stream.ReadExactly(text);
-		Stack.Push(Encoding.GetString(text));
+		var text = new byte[value[0]];
+		Stream.ReadExactly(text.AsSpan());
+		Stack.Push(text);
 	}
 
 	private void LoadBinString1() { // U
@@ -512,7 +512,7 @@ public sealed class Unpickler(Stream stream, Encoding? encoding = null) : IDispo
 	}
 
 	private void LoadSetItems() { // u
-		var items = PopMark().ToArray();
+		var items = PopMark().Reverse().ToArray();
 		var obj = Stack.Peek();
 
 		switch (obj) {
@@ -537,7 +537,7 @@ public sealed class Unpickler(Stream stream, Encoding? encoding = null) : IDispo
 	}
 
 	private void LoadAddItems() { // 0x90
-		var items = PopMark().ToArray();
+		var items = PopMark().Reverse().ToArray();
 		var obj = Stack.Peek();
 
 		switch (obj) {
