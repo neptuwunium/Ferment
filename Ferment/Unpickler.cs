@@ -305,7 +305,7 @@ public sealed class Unpickler(Stream stream, Encoding? encoding = null) : IDispo
 		var module = ReadLine();
 		var name = ReadLine();
 		var args = PopMark();
-		var obj = new Dictionary<string, object?> {
+		var obj = new Dictionary<object, object?> {
 			{ "__module__", module },
 			{ "__name__", name },
 			{ "__args__", args.ToArray() },
@@ -316,7 +316,7 @@ public sealed class Unpickler(Stream stream, Encoding? encoding = null) : IDispo
 	private void LoadObj() { // o
 		var args = PopMark();
 		var cls = Stack.Pop();
-		var obj = new Dictionary<string, object?> {
+		var obj = new Dictionary<object, object?> {
 			{ "__name__", cls },
 			{ "__args__", args.ToArray() },
 		};
@@ -326,7 +326,7 @@ public sealed class Unpickler(Stream stream, Encoding? encoding = null) : IDispo
 	private void LoadNewObj() { // 0x81
 		var args = Stack.Pop();
 		var cls = Stack.Pop();
-		var obj = new Dictionary<string, object?> {
+		var obj = new Dictionary<object, object?> {
 			{ "__name__", cls },
 			{ "__args__", args },
 		};
@@ -337,7 +337,7 @@ public sealed class Unpickler(Stream stream, Encoding? encoding = null) : IDispo
 		var kwargs = Stack.Pop();
 		var args = Stack.Pop();
 		var cls = Stack.Pop();
-		var obj = new Dictionary<string, object?> {
+		var obj = new Dictionary<object, object?> {
 			{ "__name__", cls },
 			{ "__args__", args },
 			{ "__kwargs__", kwargs },
@@ -348,7 +348,7 @@ public sealed class Unpickler(Stream stream, Encoding? encoding = null) : IDispo
 	private void LoadGlobal() { // c
 		var module = ReadLine();
 		var name = ReadLine();
-		Stack.Push(new Dictionary<string, object?> {
+		Stack.Push(new Dictionary<object, object?> {
 			{ "__module__", module },
 			{ "__name__", name },
 		});
@@ -357,7 +357,7 @@ public sealed class Unpickler(Stream stream, Encoding? encoding = null) : IDispo
 	private void LoadStackGlobal() { // 0x93
 		var args = Stack.Pop();
 		var cls = Stack.Pop();
-		var obj = new Dictionary<string, object?> {
+		var obj = new Dictionary<object, object?> {
 			{ "__name__", cls },
 			{ "__args__", args },
 		};
@@ -392,7 +392,7 @@ public sealed class Unpickler(Stream stream, Encoding? encoding = null) : IDispo
 	private void LoadReduce() { // R
 		var args = Stack.Pop();
 		var cls = Stack.Pop();
-		if (cls is not Dictionary<string, object> obj) {
+		if (cls is not Dictionary<object, object> obj) {
 			throw new InvalidDataException("Got garbage data");
 		}
 
@@ -405,7 +405,7 @@ public sealed class Unpickler(Stream stream, Encoding? encoding = null) : IDispo
 		switch (module + "." + name) {
 			case "copyreg._reconstructor":
 			case "copy_reg._reconstructor":
-				Stack.Push(new Dictionary<string, object>());
+				Stack.Push(new Dictionary<object, object>());
 				break;
 			case "__builtin__.set":
 			case "__builtin__.frozenset":
@@ -501,12 +501,12 @@ public sealed class Unpickler(Stream stream, Encoding? encoding = null) : IDispo
 		var obj = Stack.Peek();
 		switch (obj) {
 			case List<object?> list:
-				list.Add(value);
+				list.AddRange(value);
 				break;
 			case object?[] array: {
-				var newArray = new object?[array.Length + 1];
+				var newArray = new object?[array.Length + value.Count];
 				array.CopyTo(newArray, 0);
-				newArray[array.Length] = value;
+				value.CopyTo(newArray, array.Length);
 				Stack.Pop();
 				Stack.Push(newArray);
 				break;
@@ -527,11 +527,8 @@ public sealed class Unpickler(Stream stream, Encoding? encoding = null) : IDispo
 		var obj = Stack.Peek();
 
 		switch (obj) {
-			case Dictionary<string, object?> dict:
-				dict[key.ToString()!] = value;
-				break;
 			case Dictionary<object, object?> dict:
-				dict[key] = value;
+				dict[key.ToString()!] = value;
 				break;
 			default: throw new InvalidDataException("Unexpected type");
 		}
@@ -542,19 +539,11 @@ public sealed class Unpickler(Stream stream, Encoding? encoding = null) : IDispo
 		var obj = Stack.Peek();
 
 		switch (obj) {
-			case Dictionary<string, object?> dict:
-				for (var i = 0; i < items.Length; i += 2) {
-					var key = items[i] ?? throw new InvalidDataException("Unexpected null key");
-					var value = items[i + 1];
-					dict[key.ToString()!] = value;
-				}
-
-				break;
 			case Dictionary<object, object?> dict:
 				for (var i = 0; i < items.Length; i += 2) {
 					var key = items[i] ?? throw new InvalidDataException("Unexpected null key");
 					var value = items[i + 1];
-					dict[key] = value;
+					dict[key.ToString()!] = value;
 				}
 
 				break;
@@ -574,10 +563,7 @@ public sealed class Unpickler(Stream stream, Encoding? encoding = null) : IDispo
 
 				break;
 			case List<object?> list:
-				foreach (var item in items) {
-					list.Add(item);
-				}
-
+				list.AddRange(items);
 				break;
 			case object?[] array: {
 				var newArray = new object?[array.Length + items.Length];
@@ -596,26 +582,53 @@ public sealed class Unpickler(Stream stream, Encoding? encoding = null) : IDispo
 		var inst = Stack.Peek();
 
 		switch (inst) {
-			case Dictionary<string, object?> dict:
-				dict["__state__"] = obj;
-				break;
-			case Dictionary<object, object?> dict:
-				dict["__state__"] = obj;
-				break;
-			case List<object?> list:
-				list.Add(obj);
-				break;
-			case object?[] array: {
-				var newArray = new object?[array.Length + 1];
-				array.CopyTo(newArray, 0);
-				newArray[array.Length] = obj;
-				Stack.Pop();
-				Stack.Push(newArray);
+			case Dictionary<object, object?> dict: {
+				if (obj is Dictionary<object, object?> dictObj) {
+					foreach (var (key, val) in dictObj) {
+						dict[key] = val;
+					}
+				} else {
+					dict["__state__"] = obj;
+				}
+
 				break;
 			}
-			case HashSet<object?> set:
-				set.Add(obj);
+			case List<object?> list: {
+				if (obj is List<object?> listObj) {
+					list.AddRange(listObj);
+				} else {
+					list.Add(obj);
+				}
+
 				break;
+			}
+			case object?[] array: {
+				object?[] newArray;
+				if (obj is List<object?> arrayObj) {
+					newArray = new object?[array.Length + arrayObj.Count];
+					array.CopyTo(newArray, 0);
+					arrayObj.CopyTo(newArray, array.Length);
+				} else {
+					newArray = new object?[array.Length + 1];
+					array.CopyTo(newArray, 0);
+					newArray[array.Length] = obj;
+				}
+				Stack.Pop();
+				Stack.Push(newArray);
+
+				break;
+			}
+			case HashSet<object?> set: {
+				if (obj is HashSet<object?> setObj) {
+					foreach (var entry in setObj) {
+						set.Add(entry);
+					}
+				} else {
+					set.Add(obj);
+				}
+
+				break;
+			}
 			default: throw new InvalidDataException("Unexpected type");
 		}
 	}
