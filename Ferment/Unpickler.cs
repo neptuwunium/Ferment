@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Ferment;
 
-// we support all opcodes except REDUCE (1), FRAME (4), NEXT_BUFFER (5), and READONLY_BUFFER (5) though EXT1 (2), EXT2 (2) and EXT4 (2) might be implemented incorrectly.
+// we support all opcodes except FRAME (4), NEXT_BUFFER (5), and READONLY_BUFFER (5) though EXT1 (2), EXT2 (2) and EXT4 (2) might be implemented incorrectly.
 public sealed class Unpickler(Stream stream, Encoding? encoding = null) : IDisposable {
 	public Stream Stream { get; } = stream;
 	public Stack<object?> Stack { get; set; } = new();
@@ -105,7 +105,7 @@ public sealed class Unpickler(Stream stream, Encoding? encoding = null) : IDispo
 	}
 
 	private void LoadLong() { // L
-		var value = ReadLine() ?? throw new InvalidDataException("Expected long value");
+		var value = ReadLine().TrimEnd('L') ?? throw new InvalidDataException("Expected long value");
 		Stack.Push(long.Parse(value));
 	}
 
@@ -390,7 +390,33 @@ public sealed class Unpickler(Stream stream, Encoding? encoding = null) : IDispo
 
 	// ReSharper disable once MemberCanBeMadeStatic.Local
 	private void LoadReduce() { // R
-		throw new NotSupportedException("REDUCE opcode is not supported");
+		var args = Stack.Pop();
+		var cls = Stack.Pop();
+		if (cls is not Dictionary<string, object> obj) {
+			throw new InvalidDataException("Got garbage data");
+		}
+
+		if (args is not object[] argArray) {
+			throw new InvalidDataException("Got garbage data");
+		}
+
+		var module = (string) obj["__module__"];
+		var name = (string) obj["__name__"];
+		switch (module + "." + name) {
+			case "copyreg._reconstructor":
+			case "copy_reg._reconstructor":
+				Stack.Push(new Dictionary<string, object>());
+				break;
+			case "__builtin__.set":
+			case "__builtin__.frozenset":
+			case "__builtin__.list":
+			case "__builtin__.bytearray":
+			case "__builtin__.int":
+				Stack.Push(argArray[0]);
+				break;
+			default:
+				throw new NotSupportedException($"REDUCE opcode is not supported for {module}.{name}");
+		}
 	}
 
 	private void LoadPop() { // 0
@@ -603,7 +629,7 @@ public sealed class Unpickler(Stream stream, Encoding? encoding = null) : IDispo
 		Stack.Pop();
 
 	public object? Read() {
-		while (Stream.Position < Stream.Length) {
+		while (!Stream.CanSeek || Stream.Position < Stream.Length) {
 			var opcode = (char) Stream.ReadByte();
 
 			switch (opcode) {
