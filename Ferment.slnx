@@ -1,0 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2025-2026 Legiayayana
+
+SPDX-License-Identifier: EUPL-1.2
+-->
+
+<Solution>
+  <Project Path="Ferment/Ferment.csproj" />
+</Solution>

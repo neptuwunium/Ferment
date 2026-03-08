@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2025-2026 Legiayayana
+
+SPDX-License-Identifier: EUPL-1.2
+-->
+
 # Ferment
 
 An experimental python unpickler in C#.

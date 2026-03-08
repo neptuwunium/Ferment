@@ -1,3 +1,9 @@
+/*
+SPDX-FileCopyrightText: 2025-2026 Legiayayana
+
+SPDX-License-Identifier: EUPL-1.2
+*/
+
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
