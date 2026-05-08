@@ -6,6 +6,8 @@ SPDX-License-Identifier: EUPL-1.2
 
 # Ferment
 
+# moved to [neptune](https://github.com/neptuwunium/Neptune/blob/develop/Pluto/IO/Unpickler.cs)
+
 An experimental python unpickler in C#.
 
 ## Attribution
